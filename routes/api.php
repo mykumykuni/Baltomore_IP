@@ -1,8 +1,6 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/test', function () {
-    return ['status' => 'Success', 'message' => 'Your API is working!'];
-});
+Route::apiResource('tasks', TaskController::class);
