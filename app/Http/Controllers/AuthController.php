@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
@@ -22,6 +23,8 @@ class AuthController extends Controller
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
         ]);
+
+        $user->assignRole('user');
 
         $token = $user->createToken('api-token')->plainTextToken;
 
@@ -59,5 +62,19 @@ class AuthController extends Controller
         $request->user()->tokens()->where('id', $request->user()->currentAccessToken()->id)->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    public function assignRole(Request $request)
+    {
+        $request->validate([
+            'role' => 'required|string|exists:roles,name',
+        ]);
+
+        $request->user()->syncRoles([$request->role]);
+
+        return response()->json([
+            'message' => 'Role assigned successfully',
+            'roles'   => $request->user()->getRoleNames(),
+        ]);
     }
 }
