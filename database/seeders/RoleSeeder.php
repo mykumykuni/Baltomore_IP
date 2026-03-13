@@ -22,15 +22,15 @@ class RoleSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'api']);
+            Permission::firstOrCreate(['name' => $permission]);
         }
 
         // Admin — full access
-        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'api']);
+        $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions($permissions);
 
         // User — can only view and create
-        $user = Role::firstOrCreate(['name' => 'user', 'guard_name' => 'api']);
+        $user = Role::firstOrCreate(['name' => 'user']);
         $user->syncPermissions(['view tasks', 'create tasks']);
     }
 }
