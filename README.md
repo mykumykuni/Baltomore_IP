@@ -1,59 +1,251 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Baltomore IP — Tasks REST API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel-based REST API for managing person records with fields for name, age, birthdate, and email.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Requirements
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- PHP >= 8.2
+- Composer
+- SQLite (default) or MySQL/PostgreSQL
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Installation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+# 1. Install dependencies
+composer install
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+# 2. Copy the environment file
+cp .env.example .env   # Windows: copy .env.example .env
 
-## Laravel Sponsors
+# 3. Generate application key
+php artisan key:generate
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+# 4. Run database migrations
+php artisan migrate
+```
 
-### Premium Partners
+> By default the app uses **SQLite**. No extra database configuration is needed for local development.  
+> To use MySQL or another driver, update `DB_CONNECTION` and related values in your `.env` file.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+---
 
-## Contributing
+## Running the Server
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php artisan serve
+```
 
-## Code of Conduct
+The API will be available at `http://127.0.0.1:8000`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## API Endpoints
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Base URL: `http://127.0.0.1:8000/api`
+
+### Authentication (public)
+
+| Method | Endpoint      | Description             |
+|--------|---------------|-------------------------|
+| `POST` | `/register`   | Register a new user     |
+| `POST` | `/login`      | Login and get a token   |
+| `POST` | `/logout`     | Revoke token (auth required) |
+
+### Tasks (requires Bearer token)
+
+| Method      | Endpoint        | Description         |
+|-------------|-----------------|---------------------|
+| `GET`       | `/tasks`        | List all records    |
+| `POST`      | `/tasks`        | Create a record     |
+| `GET`       | `/tasks/{id}`   | Get a single record |
+| `PUT/PATCH` | `/tasks/{id}`   | Update a record     |
+| `DELETE`    | `/tasks/{id}`   | Delete a record     |
+
+---
+
+## Request & Response Examples
+
+### Register — `POST /api/register`
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "secret123",
+  "password_confirmation": "secret123"
+}
+```
+
+**Response `201`:**
+```json
+{
+  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
+  "token": "1|abc123..."
+}
+```
+
+---
+
+### Login — `POST /api/login`
+
+```json
+{
+  "email": "john@example.com",
+  "password": "secret123"
+}
+```
+
+**Response `200`:**
+```json
+{
+  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
+  "token": "2|xyz789..."
+}
+```
+
+---
+
+### Using the token
+
+Include the token in the `Authorization` header for all protected routes:
+
+```
+Authorization: Bearer 2|xyz789...
+```
+
+---
+
+### Logout — `POST /api/logout`
+
+No body required. Just send the `Authorization` header. Revokes the current token.
+
+**Response `200`:**
+```json
+{ "message": "Logged out successfully" }
+```
+
+---
+
+### Create a record — `POST /api/tasks`
+
+**Request body:**
+```json
+{
+  "name": "John Doe",
+  "age": 30,
+  "birthdate": "1995-03-13",
+  "email": "john@example.com"
+}
+```
+
+**Response `201`:**
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "age": 30,
+  "birthdate": "1995-03-13",
+  "email": "john@example.com",
+  "created_at": "2026-03-13T00:00:00.000000Z",
+  "updated_at": "2026-03-13T00:00:00.000000Z"
+}
+```
+
+---
+
+### List all records — `GET /api/tasks`
+
+**Response `200`:**
+```json
+[
+  {
+    "id": 1,
+    "name": "John Doe",
+    "age": 30,
+    "birthdate": "1995-03-13",
+    "email": "john@example.com",
+    "created_at": "...",
+    "updated_at": "..."
+  }
+]
+```
+
+---
+
+### Get one record — `GET /api/tasks/1`
+
+**Response `200`:** returns the matching record object, or `404` if not found.
+
+---
+
+### Update a record — `PATCH /api/tasks/1`
+
+All fields are optional — only send what you want to change.
+
+**Request body:**
+```json
+{
+  "age": 31
+}
+```
+
+**Response `200`:** returns the updated record object.
+
+---
+
+### Delete a record — `DELETE /api/tasks/1`
+
+**Response `200`:**
+```json
+{
+  "message": "Deleted"
+}
+```
+
+---
+
+## Validation Rules
+
+| Field       | Create               | Update                    |
+|-------------|----------------------|---------------------------|
+| `name`      | required, string     | optional, string          |
+| `age`       | required, integer    | optional, integer         |
+| `birthdate` | required, date       | optional, date            |
+| `email`     | required, valid, unique | optional, valid, unique (ignores own record) |
+
+Validation failures return `422` with a JSON error body.
+
+---
+
+## Running Tests
+
+```bash
+php artisan test
+```
+
+---
+
+## Project Structure
+
+```
+app/
+  Http/
+    Controllers/TaskController.php   # CRUD logic
+    Requests/StoreTaskRequest.php    # Create validation
+    Requests/UpdateTaskRequest.php   # Update validation
+  Models/Task.php                    # Eloquent model
+database/
+  migrations/                        # DB schema
+routes/
+  api.php                            # API route definitions
+```
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT
