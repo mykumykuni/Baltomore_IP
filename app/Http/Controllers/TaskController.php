@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Models\User;
+use App\Notifications\TaskActivityNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class TaskController extends Controller {
     public function index()
@@ -21,6 +24,9 @@ class TaskController extends Controller {
         ]);
 
         $task = Task::create($validated);
+
+        $this->notifyTaskActivity($request, $task, 'created');
+
         return response()->json($task, 201);
     }
 
@@ -39,12 +45,34 @@ class TaskController extends Controller {
         ]);
 
         $task->update($validated);
+
+        $this->notifyTaskActivity($request, $task->fresh(), 'updated');
+
         return response()->json($task->fresh());
     }
 
-    public function destroy(Task $task)
+    public function destroy(Request $request, Task $task)
     {
+        $this->notifyTaskActivity($request, $task, 'deleted');
+
         $task->delete();
         return response()->json(['message' => 'Deleted']);
+    }
+
+    private function notifyTaskActivity(Request $request, Task $task, string $action): void
+    {
+        $actor = $request->user();
+
+        $recipients = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('name', 'admin'))
+            ->get();
+
+        if ($actor !== null && ! $recipients->contains('id', $actor->id)) {
+            $recipients->push($actor);
+        }
+
+        if ($recipients->isNotEmpty()) {
+            Notification::send($recipients, new TaskActivityNotification($task, $action, $actor));
+        }
     }
 }
