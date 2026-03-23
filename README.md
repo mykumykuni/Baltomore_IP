@@ -1,402 +1,240 @@
-# Baltomore IP — Laravel Tasks API
+# Baltomore IP - Laravel Tasks API
 
-A Laravel REST API for managing person records with:
+A Laravel REST API for managing task/person records with:
+
 - Sanctum token authentication
 - Role and permission authorization (Spatie)
 - Database notifications for task activity
 - Eloquent ORM relationships and query filtering
+- File management per task (upload, list, download, delete)
 
----
+## Tech Stack
+
+| Item | Value |
+|---|---|
+| Framework | Laravel 12 |
+| Auth | Laravel Sanctum |
+| Authorization | spatie/laravel-permission |
+| Database | SQLite by default (or MySQL/PostgreSQL) |
+| Testing | PHPUnit/Pest via `php artisan test` |
 
 ## Requirements
 
-- PHP >= 8.2
-- Composer
-- SQLite (default) or MySQL/PostgreSQL
+| Requirement | Version |
+|---|---|
+| PHP | >= 8.2 |
+| Composer | Latest stable |
 
----
+## Quick Setup
 
-## Installation
+| Step | Command |
+|---|---|
+| Install dependencies | `composer install` |
+| Create env file | `copy .env.example .env` (Windows) |
+| Generate app key | `php artisan key:generate` |
+| Run migrations | `php artisan migrate` |
+| Seed roles/permissions | `php artisan db:seed` |
 
-```bash
-# 1. Install dependencies
-composer install
+## Run the API
 
-# 2. Copy the environment file
-cp .env.example .env   # Windows: copy .env.example .env
+| Scenario | Command |
+|---|---|
+| Default | `php artisan serve` |
+| If port 8000 is busy | `php artisan serve --host=127.0.0.1 --port=8001` |
 
-# 3. Generate application key
-php artisan key:generate
+Base API URL:
 
-# 4. Run database migrations
-php artisan migrate
+- `http://127.0.0.1:8000/api`
+- or `http://127.0.0.1:8001/api` if you use port 8001
 
-# 5. Seed roles and permissions
-php artisan db:seed
-```
+## Required Headers
 
-> By default the app uses **SQLite**. No extra database configuration is needed for local development.  
-> To use MySQL or another driver, update `DB_CONNECTION` and related values in your `.env` file.
+| Header | Value |
+|---|---|
+| Accept | `application/json` |
+| Content-Type | `application/json` (JSON endpoints only) |
+| Authorization | `Bearer YOUR_TOKEN` (protected endpoints) |
 
----
+For file upload endpoint (`POST /tasks/{task}/files`), use `form-data` body and do not manually set `Content-Type`.
 
-## Running the Server
+## Role and Permission Matrix
 
-```bash
-php artisan serve
-```
+| Action | Permission |
+|---|---|
+| View tasks/files | `view tasks` |
+| Create task/upload file | `create tasks` |
+| Edit task | `edit tasks` |
+| Delete task/delete file | `delete tasks` |
 
-If port 8000 is busy:
-
-```bash
-php artisan serve --host=127.0.0.1 --port=8001
-```
-
-The API will be available at `http://127.0.0.1:8000`.
-
----
-
-## API Endpoints
-
-Base URL: `http://127.0.0.1:8000/api`
+## Endpoint Reference
 
 ### Authentication
 
-| Method | Endpoint       | Description                           |
-|--------|----------------|---------------------------------------|
-| `POST` | `/register`    | Register a new user (returns token)   |
-| `POST` | `/login`       | Login and get a token                 |
-| `POST` | `/logout`      | Revoke current token (auth required)  |
-| `POST` | `/assign-role` | Assign role to current user (`admin` / `user`) |
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/register` | Register user and return token |
+| POST | `/login` | Login and return token |
+| POST | `/logout` | Revoke current token |
+| POST | `/assign-role` | Assign role to current user (`admin` or `user`) |
 
-### Tasks (requires Bearer token + permissions)
+### Tasks
 
-| Method      | Endpoint        | Permission Required |
-|-------------|-----------------|---------------------|
-| `GET`       | `/tasks`        | `view tasks`        |
-| `POST`      | `/tasks`        | `create tasks`      |
-| `GET`       | `/tasks/{id}`   | `view tasks`        |
-| `PUT/PATCH` | `/tasks/{id}`   | `edit tasks`        |
-| `DELETE`    | `/tasks/{id}`   | `delete tasks`      |
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/tasks` | List tasks |
+| POST | `/tasks` | Create task |
+| GET | `/tasks/{task}` | Get one task |
+| PATCH/PUT | `/tasks/{task}` | Update task |
+| DELETE | `/tasks/{task}` | Delete task |
 
 ### Task Query Parameters (`GET /tasks`)
 
-| Query Param | Type     | Description |
-|------------|----------|-------------|
-| `search`   | string   | Matches partial `name` or `email` |
-| `min_age`  | integer  | Filter tasks with age >= value |
-| `max_age`  | integer  | Filter tasks with age <= value |
+| Query | Type | Description |
+|---|---|---|
+| `search` | string | Matches task `name` or `email` |
+| `min_age` | integer | Filters `age >= min_age` |
+| `max_age` | integer | Filters `age <= max_age` |
 
-### Notifications (requires Bearer token)
+### Notifications
 
-| Method | Endpoint                        | Description |
-|--------|---------------------------------|-------------|
-| `GET`  | `/notifications`                | List notifications + unread count |
-| `POST` | `/notifications/{id}/read`      | Mark one notification as read |
-| `POST` | `/notifications/read-all`       | Mark all unread notifications as read |
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/notifications` | List notifications + unread count |
+| POST | `/notifications/{id}/read` | Mark one notification as read |
+| POST | `/notifications/read-all` | Mark all unread notifications as read |
 
-Task create/update/delete actions generate database notifications.
+### File Management (Activity 7)
 
-Created tasks are owned by the authenticated user via Eloquent (`user_id`).
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/tasks/{task}/files` | List files of a task |
+| POST | `/tasks/{task}/files` | Upload a file to a task |
+| GET | `/tasks/{task}/files/{taskFile}/download` | Download file |
+| DELETE | `/tasks/{task}/files/{taskFile}` | Delete file |
 
----
+## Request Body Reference
 
-## Request & Response Examples
-
-### Required Headers for API Testing
-
-```http
-Accept: application/json
-Content-Type: application/json
-```
-
-### Register — `POST /api/register`
+### Register (`POST /register`)
 
 ```json
 {
   "name": "John Doe",
   "email": "john@example.com",
-  "password": "secret123",
-  "password_confirmation": "secret123"
+  "password": "password123",
+  "password_confirmation": "password123"
 }
 ```
 
-**Response `201`:**
-```json
-{
-  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
-  "token": "1|abc123..."
-}
-```
-
----
-
-### Login — `POST /api/login`
+### Login (`POST /login`)
 
 ```json
 {
   "email": "john@example.com",
-  "password": "secret123"
+  "password": "password123"
 }
 ```
 
-**Response `200`:**
+### Assign role (`POST /assign-role`)
+
 ```json
 {
-  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
-  "token": "2|xyz789..."
+  "role": "admin"
 }
 ```
 
----
+### Create task (`POST /tasks`)
 
-### Using the token
-
-Include the token in the `Authorization` header for all protected routes:
-
-```
-Authorization: Bearer 2|xyz789...
-```
-
-Set this header on protected routes:
-
-```http
-Authorization: Bearer YOUR_TOKEN
-```
-
----
-
-### Logout — `POST /api/logout`
-
-No body required. Just send the `Authorization` header. Revokes the current token.
-
-**Response `200`:**
-```json
-{ "message": "Logged out successfully" }
-```
-
----
-
-### Create a record — `POST /api/tasks`
-
-**Request body:**
 ```json
 {
-  "name": "John Doe",
-  "age": 30,
-  "birthdate": "1995-03-13",
-  "email": "john@example.com"
+  "name": "Jane Smith",
+  "age": 25,
+  "birthdate": "2000-01-01",
+  "email": "jane@example.com"
 }
 ```
 
-**Response `201`:**
+### Update task (`PATCH /tasks/{task}`)
+
 ```json
 {
-  "id": 1,
-  "user_id": 1,
-  "name": "John Doe",
-  "age": 30,
-  "birthdate": "1995-03-13",
-  "email": "john@example.com",
-  "user": {
-    "id": 1,
-    "name": "John Doe",
-    "email": "john@example.com"
-  },
-  "created_at": "2026-03-13T00:00:00.000000Z",
-  "updated_at": "2026-03-13T00:00:00.000000Z"
+  "age": 26
 }
 ```
 
----
+### Upload file (`POST /tasks/{task}/files`)
 
-### List all records — `GET /api/tasks`
+Use `form-data`:
 
-**Response `200`:**
-```json
-[
-  {
-    "id": 1,
-    "user_id": 1,
-    "name": "John Doe",
-    "age": 30,
-    "birthdate": "1995-03-13",
-    "email": "john@example.com",
-    "user": {
-      "id": 1,
-      "name": "John Doe",
-      "email": "john@example.com"
-    },
-    "created_at": "...",
-    "updated_at": "..."
-  }
-]
-```
+| Key | Type | Value |
+|---|---|---|
+| `file` | File | Choose local file |
 
-### Filtered list example — `GET /api/tasks?search=john&min_age=18&max_age=35`
+## What Happens Internally
 
-Returns only tasks that match search and age conditions.
+| Feature | Behavior |
+|---|---|
+| Eloquent ownership | Task is created using authenticated user relation (`user_id`) |
+| Task listing | Includes eager-loaded `user` and `files` metadata |
+| Notifications | Task create/update/delete generates database notifications |
+| File storage | Uploaded files are stored on local disk under `storage/app/private/tasks/{task_id}` |
+| File cleanup | Deleting a file record removes the physical file |
 
----
+## End-to-End Testing Flow
 
-### Get one record — `GET /api/tasks/1`
+| Step | Action | Endpoint/Command |
+|---|---|---|
+| 1 | Run app | `php artisan migrate`, `php artisan db:seed`, `php artisan serve --host=127.0.0.1 --port=8001` |
+| 2 | Register | `POST /register` |
+| 3 | Login and copy token | `POST /login` |
+| 4 | Set Bearer token header | `Authorization: Bearer YOUR_TOKEN` |
+| 5 | Create task | `POST /tasks` |
+| 6 | Upload file | `POST /tasks/{task}/files` (form-data key `file`) |
+| 7 | List files | `GET /tasks/{task}/files` |
+| 8 | Download file | `GET /tasks/{task}/files/{taskFile}/download` |
+| 9 | Delete file (admin) | `DELETE /tasks/{task}/files/{taskFile}` |
+| 10 | Check notifications | `GET /notifications` |
 
-**Response `200`:** returns the matching record object, or `404` if not found.
+## Automated Tests
 
----
+| Scope | Command |
+|---|---|
+| Full test suite | `php artisan test` |
+| Notifications only | `php artisan test --filter=NotificationTest` |
+| Eloquent ORM only | `php artisan test --filter=EloquentOrmTest` |
+| File management only | `php artisan test --filter=FileManagementTest` |
 
-### Update a record — `PATCH /api/tasks/1`
+## Common Errors
 
-All fields are optional — only send what you want to change.
-
-**Request body:**
-```json
-{
-  "age": 31
-}
-```
-
-**Response `200`:** returns the updated record object.
-
----
-
-### Delete a record — `DELETE /api/tasks/1`
-
-**Response `200`:**
-```json
-{
-  "message": "Deleted"
-}
-```
-
----
-
-### Get notifications — `GET /api/notifications`
-
-**Response `200`:**
-```json
-{
-  "unread_count": 1,
-  "notifications": [
-    {
-      "id": "uuid",
-      "type": "App\\Notifications\\TaskActivityNotification",
-      "data": {
-        "task_id": 1,
-        "task_name": "John Doe",
-        "action": "created",
-        "actor_name": "Regular User",
-        "message": "Task \"John Doe\" was created by Regular User."
-      },
-      "read_at": null,
-      "created_at": "...",
-      "updated_at": "..."
-    }
-  ]
-}
-```
-
-### Mark one notification as read — `POST /api/notifications/{id}/read`
-
-**Response `200`:**
-```json
-{
-  "message": "Notification marked as read",
-  "notification": {
-    "id": "uuid",
-    "read_at": "2026-03-23T06:00:00.000000Z"
-  }
-}
-```
-
-### Mark all notifications as read — `POST /api/notifications/read-all`
-
-**Response `200`:**
-```json
-{
-  "message": "All notifications marked as read",
-  "marked_count": 3
-}
-```
-
----
-
-## Validation Rules
-
-| Field       | Create               | Update                    |
-|-------------|----------------------|---------------------------|
-| `name`      | required, string     | optional, string          |
-| `age`       | required, integer    | optional, integer         |
-| `birthdate` | required, date       | optional, date            |
-| `email`     | required, valid, unique | optional, valid, unique (ignores own record) |
-
-Validation failures return `422` with a JSON error body.
-
-Permission failures return `403`.
-Authentication failures return `401`.
-
----
-
-## Running Tests
-
-```bash
-php artisan test
-php artisan test --filter=NotificationTest
-php artisan test --filter=EloquentOrmTest
-```
-
----
-
-## How to Use the API (Step by Step)
-
-1. Start the app:
-```bash
-php artisan migrate
-php artisan db:seed
-php artisan serve
-```
-2. Register account: `POST /api/register`.
-3. Login: `POST /api/login`, then copy `token`.
-4. Add header: `Authorization: Bearer YOUR_TOKEN`.
-5. (Optional) Set role: `POST /api/assign-role` with `{ "role": "admin" }`.
-6. Create task: `POST /api/tasks`.
-7. List tasks: `GET /api/tasks`.
-8. Filter tasks: `GET /api/tasks?search=alice&min_age=18&max_age=30`.
-9. Check notifications: `GET /api/notifications`.
-10. Mark one notification: `POST /api/notifications/{id}/read`.
-11. Mark all notifications: `POST /api/notifications/read-all`.
-
-### Common Issues
-
-- `401 Unauthorized`: Missing/invalid Bearer token.
-- `403 Forbidden`: Account role has no permission for that action.
-- `422 Unprocessable Content`: Request JSON/body fails validation.
-- HTML response instead of JSON: Missing `Accept: application/json` header or wrong URL.
-
----
+| Status | Cause | Fix |
+|---|---|---|
+| 401 Unauthorized | Missing/invalid token | Re-login and send `Authorization: Bearer YOUR_TOKEN` |
+| 403 Forbidden | Missing permission | Assign correct role/permissions |
+| 404 Not Found | Wrong task/file id or wrong port | Create task first, use real IDs, confirm server/port |
+| 422 Unprocessable Content | Invalid body/validation | Check required fields and formats |
+| HTML response | Missing JSON header or wrong URL | Add `Accept: application/json`, use `/api/...` |
 
 ## Project Structure
 
-```
+```text
 app/
   Http/
-    Controllers/AuthController.php          # Register/login/logout/assign role
-    Controllers/TaskController.php          # Task CRUD + Eloquent query filtering + notification trigger
-    Controllers/NotificationController.php  # Notification inbox endpoints
-    Requests/StoreTaskRequest.php           # Create validation
-    Requests/UpdateTaskRequest.php          # Update validation
-  Notifications/TaskActivityNotification.php  # Database notification payload
-  Models/Task.php                           # Eloquent model + scopes + belongsTo User
-  Models/User.php                           # Auth model + hasMany Tasks
+    Controllers/
+      AuthController.php
+      NotificationController.php
+      TaskController.php
+      TaskFileController.php
+  Models/
+    User.php
+    Task.php
+    TaskFile.php
+  Notifications/
+    TaskActivityNotification.php
 database/
-  migrations/                        # users/tasks/sanctum/spatie/notifications tables
-  migrations/2026_03_23_170100_add_user_id_to_tasks_table.php  # Task owner relationship
-  seeders/RoleSeeder.php             # admin/user roles and task permissions
+  migrations/
+  seeders/
 routes/
-  api.php                            # API route definitions
+  api.php
 ```
-
----
 
 ## License
 

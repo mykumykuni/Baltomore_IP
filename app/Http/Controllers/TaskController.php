@@ -18,7 +18,7 @@ class TaskController extends Controller {
         ]);
 
         $tasks = Task::query()
-            ->with('user:id,name,email')
+            ->with(['user:id,name,email', 'files:id,task_id,original_name,mime_type,size,created_at'])
             ->search($validated['search'] ?? null)
             ->when(isset($validated['min_age']), fn ($query) => $query->where('age', '>=', $validated['min_age']))
             ->when(isset($validated['max_age']), fn ($query) => $query->where('age', '<=', $validated['max_age']))
@@ -41,12 +41,12 @@ class TaskController extends Controller {
 
         $this->notifyTaskActivity($request, $task, 'created');
 
-        return response()->json($task->load('user:id,name,email'), 201);
+        return response()->json($task->load(['user:id,name,email', 'files:id,task_id,original_name,mime_type,size,created_at']), 201);
     }
 
     public function show(Task $task)
     {
-        return response()->json($task->load('user:id,name,email'));
+        return response()->json($task->load(['user:id,name,email', 'files:id,task_id,original_name,mime_type,size,created_at']));
     }
 
     public function update(Request $request, Task $task)
@@ -63,7 +63,7 @@ class TaskController extends Controller {
 
         $this->notifyTaskActivity($request, $task->fresh(), 'updated');
 
-        return response()->json($task->fresh()->load('user:id,name,email'));
+        return response()->json($task->fresh()->load(['user:id,name,email', 'files:id,task_id,original_name,mime_type,size,created_at']));
     }
 
     public function destroy(Request $request, Task $task)

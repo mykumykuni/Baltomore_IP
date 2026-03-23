@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\TaskFileController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,4 +27,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->middleware('permission:edit tasks');
     Route::put('/tasks/{task}',   [TaskController::class, 'update'])->middleware('permission:edit tasks');
     Route::delete('/tasks/{task}',[TaskController::class, 'destroy'])->middleware('permission:delete tasks');
+
+    // Task file routes
+    Route::get('/tasks/{task}/files', [TaskFileController::class, 'index'])->middleware('permission:view tasks');
+    Route::post('/tasks/{task}/files', [TaskFileController::class, 'store'])->middleware('permission:create tasks');
+    Route::get('/tasks/{task}/files/{taskFile}/download', [TaskFileController::class, 'download'])->middleware('permission:view tasks');
+    Route::delete('/tasks/{task}/files/{taskFile}', [TaskFileController::class, 'destroy'])->middleware('permission:delete tasks');
 });
