@@ -1,9 +1,10 @@
-# Baltomore IP — Tasks API with Auth, Roles, and Notifications
+# Baltomore IP — Laravel Tasks API
 
-A Laravel-based REST API for managing person records with:
+A Laravel REST API for managing person records with:
 - Sanctum token authentication
-- Role/permission authorization (Spatie)
+- Role and permission authorization (Spatie)
 - Database notifications for task activity
+- Eloquent ORM relationships and query filtering
 
 ---
 
@@ -45,6 +46,12 @@ php artisan db:seed
 php artisan serve
 ```
 
+If port 8000 is busy:
+
+```bash
+php artisan serve --host=127.0.0.1 --port=8001
+```
+
 The API will be available at `http://127.0.0.1:8000`.
 
 ---
@@ -53,7 +60,7 @@ The API will be available at `http://127.0.0.1:8000`.
 
 Base URL: `http://127.0.0.1:8000/api`
 
-### Authentication (public)
+### Authentication
 
 | Method | Endpoint       | Description                           |
 |--------|----------------|---------------------------------------|
@@ -72,6 +79,14 @@ Base URL: `http://127.0.0.1:8000/api`
 | `PUT/PATCH` | `/tasks/{id}`   | `edit tasks`        |
 | `DELETE`    | `/tasks/{id}`   | `delete tasks`      |
 
+### Task Query Parameters (`GET /tasks`)
+
+| Query Param | Type     | Description |
+|------------|----------|-------------|
+| `search`   | string   | Matches partial `name` or `email` |
+| `min_age`  | integer  | Filter tasks with age >= value |
+| `max_age`  | integer  | Filter tasks with age <= value |
+
 ### Notifications (requires Bearer token)
 
 | Method | Endpoint                        | Description |
@@ -82,9 +97,18 @@ Base URL: `http://127.0.0.1:8000/api`
 
 Task create/update/delete actions generate database notifications.
 
+Created tasks are owned by the authenticated user via Eloquent (`user_id`).
+
 ---
 
 ## Request & Response Examples
+
+### Required Headers for API Testing
+
+```http
+Accept: application/json
+Content-Type: application/json
+```
 
 ### Register — `POST /api/register`
 
@@ -134,11 +158,10 @@ Include the token in the `Authorization` header for all protected routes:
 Authorization: Bearer 2|xyz789...
 ```
 
-Always send these headers for API requests:
+Set this header on protected routes:
 
-```
-Accept: application/json
-Content-Type: application/json
+```http
+Authorization: Bearer YOUR_TOKEN
 ```
 
 ---
@@ -170,10 +193,16 @@ No body required. Just send the `Authorization` header. Revokes the current toke
 ```json
 {
   "id": 1,
+  "user_id": 1,
   "name": "John Doe",
   "age": 30,
   "birthdate": "1995-03-13",
   "email": "john@example.com",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com"
+  },
   "created_at": "2026-03-13T00:00:00.000000Z",
   "updated_at": "2026-03-13T00:00:00.000000Z"
 }
@@ -188,15 +217,25 @@ No body required. Just send the `Authorization` header. Revokes the current toke
 [
   {
     "id": 1,
+    "user_id": 1,
     "name": "John Doe",
     "age": 30,
     "birthdate": "1995-03-13",
     "email": "john@example.com",
+    "user": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
     "created_at": "...",
     "updated_at": "..."
   }
 ]
 ```
+
+### Filtered list example — `GET /api/tasks?search=john&min_age=18&max_age=35`
+
+Returns only tasks that match search and age conditions.
 
 ---
 
@@ -293,6 +332,9 @@ All fields are optional — only send what you want to change.
 
 Validation failures return `422` with a JSON error body.
 
+Permission failures return `403`.
+Authentication failures return `401`.
+
 ---
 
 ## Running Tests
@@ -300,27 +342,36 @@ Validation failures return `422` with a JSON error body.
 ```bash
 php artisan test
 php artisan test --filter=NotificationTest
+php artisan test --filter=EloquentOrmTest
 ```
 
 ---
 
-## Manual End-to-End Testing (Step by Step)
+## How to Use the API (Step by Step)
 
-1. Start app:
+1. Start the app:
 ```bash
 php artisan migrate
 php artisan db:seed
 php artisan serve
 ```
-2. Register and login a user; copy returned token.
-3. Use token as `Authorization: Bearer <token>`.
-4. Create a task via `POST /api/tasks`.
-5. Verify notification via `GET /api/notifications`.
-6. Mark it read via `POST /api/notifications/{id}/read`.
-7. Mark all read via `POST /api/notifications/read-all`.
+2. Register account: `POST /api/register`.
+3. Login: `POST /api/login`, then copy `token`.
+4. Add header: `Authorization: Bearer YOUR_TOKEN`.
+5. (Optional) Set role: `POST /api/assign-role` with `{ "role": "admin" }`.
+6. Create task: `POST /api/tasks`.
+7. List tasks: `GET /api/tasks`.
+8. Filter tasks: `GET /api/tasks?search=alice&min_age=18&max_age=30`.
+9. Check notifications: `GET /api/notifications`.
+10. Mark one notification: `POST /api/notifications/{id}/read`.
+11. Mark all notifications: `POST /api/notifications/read-all`.
 
-If you get `401`, token/header is missing or invalid.
-If you get `422`, request body/validation data is invalid.
+### Common Issues
+
+- `401 Unauthorized`: Missing/invalid Bearer token.
+- `403 Forbidden`: Account role has no permission for that action.
+- `422 Unprocessable Content`: Request JSON/body fails validation.
+- HTML response instead of JSON: Missing `Accept: application/json` header or wrong URL.
 
 ---
 
@@ -330,14 +381,16 @@ If you get `422`, request body/validation data is invalid.
 app/
   Http/
     Controllers/AuthController.php          # Register/login/logout/assign role
-    Controllers/TaskController.php          # Task CRUD + notification trigger
+    Controllers/TaskController.php          # Task CRUD + Eloquent query filtering + notification trigger
     Controllers/NotificationController.php  # Notification inbox endpoints
-    Requests/StoreTaskRequest.php    # Create validation
-    Requests/UpdateTaskRequest.php   # Update validation
+    Requests/StoreTaskRequest.php           # Create validation
+    Requests/UpdateTaskRequest.php          # Update validation
   Notifications/TaskActivityNotification.php  # Database notification payload
-  Models/Task.php                    # Eloquent model
+  Models/Task.php                           # Eloquent model + scopes + belongsTo User
+  Models/User.php                           # Auth model + hasMany Tasks
 database/
   migrations/                        # users/tasks/sanctum/spatie/notifications tables
+  migrations/2026_03_23_170100_add_user_id_to_tasks_table.php  # Task owner relationship
   seeders/RoleSeeder.php             # admin/user roles and task permissions
 routes/
   api.php                            # API route definitions

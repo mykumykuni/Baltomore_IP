@@ -9,9 +9,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 
 class TaskController extends Controller {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Task::all());
+        $validated = $request->validate([
+            'search' => 'sometimes|string',
+            'min_age' => 'sometimes|integer|min:0',
+            'max_age' => 'sometimes|integer|min:0',
+        ]);
+
+        $tasks = Task::query()
+            ->with('user:id,name,email')
+            ->search($validated['search'] ?? null)
+            ->when(isset($validated['min_age']), fn ($query) => $query->where('age', '>=', $validated['min_age']))
+            ->when(isset($validated['max_age']), fn ($query) => $query->where('age', '<=', $validated['max_age']))
+            ->latest()
+            ->get();
+
+        return response()->json($tasks);
     }
 
     public function store(Request $request)
@@ -23,16 +37,16 @@ class TaskController extends Controller {
             'email'     => 'required|email|unique:tasks,email',
         ]);
 
-        $task = Task::create($validated);
+        $task = $request->user()->tasks()->create($validated);
 
         $this->notifyTaskActivity($request, $task, 'created');
 
-        return response()->json($task, 201);
+        return response()->json($task->load('user:id,name,email'), 201);
     }
 
     public function show(Task $task)
     {
-        return response()->json($task);
+        return response()->json($task->load('user:id,name,email'));
     }
 
     public function update(Request $request, Task $task)
@@ -44,11 +58,12 @@ class TaskController extends Controller {
             'email'     => 'sometimes|email|unique:tasks,email,' . $task->id,
         ]);
 
-        $task->update($validated);
+        $task->fill($validated);
+        $task->save();
 
         $this->notifyTaskActivity($request, $task->fresh(), 'updated');
 
-        return response()->json($task->fresh());
+        return response()->json($task->fresh()->load('user:id,name,email'));
     }
 
     public function destroy(Request $request, Task $task)
