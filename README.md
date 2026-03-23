@@ -1,6 +1,9 @@
-# Baltomore IP — Tasks REST API
+# Baltomore IP — Tasks API with Auth, Roles, and Notifications
 
-A Laravel-based REST API for managing person records with fields for name, age, birthdate, and email.
+A Laravel-based REST API for managing person records with:
+- Sanctum token authentication
+- Role/permission authorization (Spatie)
+- Database notifications for task activity
 
 ---
 
@@ -26,6 +29,9 @@ php artisan key:generate
 
 # 4. Run database migrations
 php artisan migrate
+
+# 5. Seed roles and permissions
+php artisan db:seed
 ```
 
 > By default the app uses **SQLite**. No extra database configuration is needed for local development.  
@@ -49,21 +55,32 @@ Base URL: `http://127.0.0.1:8000/api`
 
 ### Authentication (public)
 
-| Method | Endpoint      | Description             |
-|--------|---------------|-------------------------|
-| `POST` | `/register`   | Register a new user     |
-| `POST` | `/login`      | Login and get a token   |
-| `POST` | `/logout`     | Revoke token (auth required) |
+| Method | Endpoint       | Description                           |
+|--------|----------------|---------------------------------------|
+| `POST` | `/register`    | Register a new user (returns token)   |
+| `POST` | `/login`       | Login and get a token                 |
+| `POST` | `/logout`      | Revoke current token (auth required)  |
+| `POST` | `/assign-role` | Assign role to current user (`admin` / `user`) |
 
-### Tasks (requires Bearer token)
+### Tasks (requires Bearer token + permissions)
 
-| Method      | Endpoint        | Description         |
+| Method      | Endpoint        | Permission Required |
 |-------------|-----------------|---------------------|
-| `GET`       | `/tasks`        | List all records    |
-| `POST`      | `/tasks`        | Create a record     |
-| `GET`       | `/tasks/{id}`   | Get a single record |
-| `PUT/PATCH` | `/tasks/{id}`   | Update a record     |
-| `DELETE`    | `/tasks/{id}`   | Delete a record     |
+| `GET`       | `/tasks`        | `view tasks`        |
+| `POST`      | `/tasks`        | `create tasks`      |
+| `GET`       | `/tasks/{id}`   | `view tasks`        |
+| `PUT/PATCH` | `/tasks/{id}`   | `edit tasks`        |
+| `DELETE`    | `/tasks/{id}`   | `delete tasks`      |
+
+### Notifications (requires Bearer token)
+
+| Method | Endpoint                        | Description |
+|--------|---------------------------------|-------------|
+| `GET`  | `/notifications`                | List notifications + unread count |
+| `POST` | `/notifications/{id}/read`      | Mark one notification as read |
+| `POST` | `/notifications/read-all`       | Mark all unread notifications as read |
+
+Task create/update/delete actions generate database notifications.
 
 ---
 
@@ -115,6 +132,13 @@ Include the token in the `Authorization` header for all protected routes:
 
 ```
 Authorization: Bearer 2|xyz789...
+```
+
+Always send these headers for API requests:
+
+```
+Accept: application/json
+Content-Type: application/json
 ```
 
 ---
@@ -208,6 +232,56 @@ All fields are optional — only send what you want to change.
 
 ---
 
+### Get notifications — `GET /api/notifications`
+
+**Response `200`:**
+```json
+{
+  "unread_count": 1,
+  "notifications": [
+    {
+      "id": "uuid",
+      "type": "App\\Notifications\\TaskActivityNotification",
+      "data": {
+        "task_id": 1,
+        "task_name": "John Doe",
+        "action": "created",
+        "actor_name": "Regular User",
+        "message": "Task \"John Doe\" was created by Regular User."
+      },
+      "read_at": null,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+### Mark one notification as read — `POST /api/notifications/{id}/read`
+
+**Response `200`:**
+```json
+{
+  "message": "Notification marked as read",
+  "notification": {
+    "id": "uuid",
+    "read_at": "2026-03-23T06:00:00.000000Z"
+  }
+}
+```
+
+### Mark all notifications as read — `POST /api/notifications/read-all`
+
+**Response `200`:**
+```json
+{
+  "message": "All notifications marked as read",
+  "marked_count": 3
+}
+```
+
+---
+
 ## Validation Rules
 
 | Field       | Create               | Update                    |
@@ -225,7 +299,28 @@ Validation failures return `422` with a JSON error body.
 
 ```bash
 php artisan test
+php artisan test --filter=NotificationTest
 ```
+
+---
+
+## Manual End-to-End Testing (Step by Step)
+
+1. Start app:
+```bash
+php artisan migrate
+php artisan db:seed
+php artisan serve
+```
+2. Register and login a user; copy returned token.
+3. Use token as `Authorization: Bearer <token>`.
+4. Create a task via `POST /api/tasks`.
+5. Verify notification via `GET /api/notifications`.
+6. Mark it read via `POST /api/notifications/{id}/read`.
+7. Mark all read via `POST /api/notifications/read-all`.
+
+If you get `401`, token/header is missing or invalid.
+If you get `422`, request body/validation data is invalid.
 
 ---
 
@@ -234,12 +329,16 @@ php artisan test
 ```
 app/
   Http/
-    Controllers/TaskController.php   # CRUD logic
+    Controllers/AuthController.php          # Register/login/logout/assign role
+    Controllers/TaskController.php          # Task CRUD + notification trigger
+    Controllers/NotificationController.php  # Notification inbox endpoints
     Requests/StoreTaskRequest.php    # Create validation
     Requests/UpdateTaskRequest.php   # Update validation
+  Notifications/TaskActivityNotification.php  # Database notification payload
   Models/Task.php                    # Eloquent model
 database/
-  migrations/                        # DB schema
+  migrations/                        # users/tasks/sanctum/spatie/notifications tables
+  seeders/RoleSeeder.php             # admin/user roles and task permissions
 routes/
   api.php                            # API route definitions
 ```

@@ -12,7 +12,7 @@ return new class extends Migration {
         $table->string('name');
         $table->integer('age');
         $table->date('birthdate');
-        $table->string('email')->unique(); // Ensures no duplicate emails
+        $table->string('email')->unique();
         $table->timestamps();
     });
 }
